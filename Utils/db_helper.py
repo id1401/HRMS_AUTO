@@ -1,43 +1,33 @@
-import configparser
-
 import pyodbc
-
-from Config.config_reader import ConfigReader
-
+import pandas as pd
 
 class DBHelper:
-    def __init__(self, env='Testing'):
-        config = ConfigReader(env)
-        self.connection = pyodbc.connect(
-            f"DRIVER={{SQL Server}};"
-            f"SERVER=172.17.100.110;"
-            f"DATABASE={config.get('db_name')};"
-            f"UID={config.get('db_user')};"
-            f"PWD={config.get('db_password')};"
+    def __init__(self):
+        self.server = '192.168.1.248'
+        self.database = 'HRMS_Testing'
+        self.username = 'user_hrms_readonly'
+        self.password = '14J7kndO#W19'
+
+        self.connection_string = (
+            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+            f"SERVER={self.server};DATABASE={self.database};"
+            f"UID={self.username};PWD={self.password}"
         )
-        self.cursor = self.connection.cursor()
-        self.company_id = 218
 
-    def get_provinces(self):
-        self.cursor.execute("""
-            SELECT ProvinceCode AS code, ProvinceName AS name
-            FROM Province
-            WHERE IsActive = 1 AND CompanyId = ?
-        """, self.company_id)
-        return {row.code: row.name for row in self.cursor.fetchall()}
+        try:
+            self.connection = pyodbc.connect(self.connection_string)
+            print("✅ Đã kết nối DB.")
+        except Exception as e:
+            print(f"❌ Lỗi kết nối DB: {e}")
+            self.connection = None
 
-    def get_districts_by_province(self, province_id):
-        self.cursor.execute("""
-            SELECT DistrictCode AS code, DistrictName AS name
-            FROM District
-            WHERE IsActive = 1 AND ProvinceId = ? AND CompanyId = ?
-        """, province_id, self.company_id)
-        return {row.code: row.name for row in self.cursor.fetchall()}
+    def read_sql(self, query):
+        if self.connection:
+            return pd.read_sql(query, self.connection)
+        else:
+            raise Exception("Không có kết nối tới cơ sở dữ liệu.")
 
-    def get_wards_by_district(self, district_id):
-        self.cursor.execute("""
-            SELECT WardCode AS code, WardName AS name
-            FROM Ward
-            WHERE IsActive = 1 AND DistrictId = ? AND CompanyId = ?
-        """, district_id, self.company_id)
-        return {row.code: row.name for row in self.cursor.fetchall()}
+    def close(self):
+        if self.connection:
+            self.connection.close()
+            print("🔒 Đã đóng kết nối DB.")
